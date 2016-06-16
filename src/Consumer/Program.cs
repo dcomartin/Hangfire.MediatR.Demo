@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Configuration;
+using System.Data.SqlClient;
 using System.Threading;
 using Demo.Producer.Messages;
 using Hangfire;
+using Hangfire.MediatR;
 using MediatR;
 using Microsoft.Owin.Hosting;
 using Microsoft.Practices.Unity;
@@ -17,11 +20,18 @@ namespace Demo.Consumer
                 new InjectionFactory(x => new Mediator(type => x.Resolve(type), type => x.ResolveAll(type))));
             container.RegisterType<IRequestHandler<HelloWorld, Unit>>(new InjectionFactory(x => new HelloWorldHandler()));
 
+            container.RegisterType<SqlConnection>(new InjectionFactory(x =>
+            {
+                var connection = new SqlConnection(ConfigurationManager.ConnectionStrings["Hangfire"].ConnectionString);
+                connection.Open();
+                return connection;
+            }));
+
             var mediator = container.Resolve<IMediator>();
 
             GlobalConfiguration.Configuration
                 .UseColouredConsoleLogProvider()
-                .UseMediatR(mediator)
+                .UseMediatR(mediator, () => container.Resolve<SqlConnection>())
                 .UseSqlServerStorage("Hangfire");
 
             using (WebApp.Start<Startup>("http://localhost:12345"))
